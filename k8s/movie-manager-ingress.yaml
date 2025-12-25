@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: movie-manager-ingress
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "movie-manager-ip"
+spec:
+  rules:
+    - http:
+        paths:
+          # Frontend on /
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: movie-manager-frontend
+                port:
+                  number: 80
+          # Backend API on /api
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: movie-manager-backend
+                port:
+                  number: 5000

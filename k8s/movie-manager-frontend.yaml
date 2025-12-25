@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: movie-manager-frontend
+  labels:
+    app: movie-manager-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: movie-manager-frontend
+  template:
+    metadata:
+      labels:
+        app: movie-manager-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: us-central1-docker.pkg.dev/${PROJECT_ID}/movie-manager-repo/movie-manager-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: movie-manager-frontend
+  labels:
+    app: movie-manager-frontend
+spec:
+  selector:
+    app: movie-manager-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
