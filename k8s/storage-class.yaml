@@ -3,7 +3,7 @@ kind: StorageClass
 metadata:
   name: pd-balanced
 provisioner: pd.csi.storage.gke.io
-parameters:
-  type: pd-balanced
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
+parameters:
+  type: pd-balanced
