@@ -2,28 +2,46 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: mongo-seed-movies
+  labels:
+    app: mongo-seed-movies
 spec:
   backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  # IMPORTANT:
+  # If you want kubectl apply to be stable across runs, use a manual selector
+  manualSelector: true
+  selector:
+    matchLabels:
+      app: mongo-seed-movies
   template:
+    metadata:
+      labels:
+        app: mongo-seed-movies
     spec:
       restartPolicy: Never
       containers:
-      - name: seed
-        image: mongo:7
-        command:
-        - sh
-        - -lc
-        - |
-          echo "Waiting for mongo..."
-          until mongosh "mongodb://mongo:27017/movie_manager" --eval 'db.runCommand({ ping: 1 })' >/dev/null 2>&1; do
-            sleep 2
-          done
-          echo "Seeding..."
-          mongosh "mongodb://mongo:27017/movie_manager" /seed/seed.js
-        volumeMounts:
         - name: seed
-          mountPath: /seed
+          image: mongo:7
+          env:
+            - name: SEED_WIPE
+              value: "false"
+          command:
+            - sh
+            - -lc
+            - |
+              echo "Waiting for mongo..."
+              until mongosh "mongodb://mongo:27017/movie_manager" --quiet --eval 'db.runCommand({ ping: 1 })' >/dev/null 2>&1; do
+                sleep 2
+              done
+              echo "Seeding..."
+              mongosh "mongodb://mongo:27017/movie_manager" /seed/seed-movies.js
+          volumeMounts:
+            - name: seed
+              mountPath: /seed
       volumes:
-      - name: seed
-        configMap:
-          name: movie-manager-seed
+        - name: seed
+          configMap:
+            name: movie-manager-seed
+            items:
+              - key: seed-movies.js
+                path: seed-movies.js

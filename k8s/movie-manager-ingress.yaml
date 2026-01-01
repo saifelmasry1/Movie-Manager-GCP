@@ -3,9 +3,14 @@ kind: Ingress
 metadata:
   name: movie-manager-ingress
   annotations:
-    kubernetes.io/ingress.global-static-ip-name: movie-manager-ip
+    kubernetes.io/ingress.class: "gce"
 spec:
   ingressClassName: gce
+  defaultBackend:
+    service:
+      name: movie-manager-frontend
+      port:
+        number: 80
   rules:
   - http:
       paths:
@@ -16,10 +21,3 @@ spec:
             name: movie-manager-backend
             port:
               number: 5000
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: movie-manager-frontend
-            port:
-              number: 80

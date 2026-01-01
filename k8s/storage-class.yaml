@@ -3,7 +3,8 @@ kind: StorageClass
 metadata:
   name: pd-balanced
 provisioner: pd.csi.storage.gke.io
-volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
 parameters:
   type: pd-balanced
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
