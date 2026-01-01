@@ -1,13 +1,33 @@
-# COPIED FROM SOURCE
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: movie-manager-seed
 data:
   seed-movies.js: |
-    db.movies.deleteMany({}); // optional: wipe existing data
+    // Pick DB name safely (works on mongosh and (mostly) legacy mongo shell)
+    var dbName = "movie-manager";
+    if (typeof process !== "undefined" && process.env && process.env.MONGO_INITDB_DATABASE) {
+      dbName = process.env.MONGO_INITDB_DATABASE;
+    }
+    db = db.getSiblingDB(dbName);
 
-    db.movies.insertMany([
+    // Optional wipe: set env WIPE_SEED=true in the Job if you want full reset
+    var wipe = false;
+    if (typeof process !== "undefined" && process.env && process.env.WIPE_SEED) {
+      wipe = (process.env.WIPE_SEED + "").toLowerCase() === "true";
+    }
+    if (wipe) {
+      db.movies.deleteMany({});
+    }
+
+    // Try to enforce uniqueness (won't break run if duplicates already exist)
+    try {
+      db.movies.createIndex({ title: 1, year: 1 }, { unique: true });
+    } catch (e) {
+      print("Index create skipped: " + e);
+    }
+
+    var movies = [
       {
         title: "The Shawshank Redemption",
         year: 1994,
@@ -104,4 +124,19 @@ data:
         posterUrl: "/images/parasite.jpg",
         description: "Greed and class discrimination threaten the symbiotic relationship..."
       }
-    ]);
+    ];
+
+    var upserts = 0;
+    for (var i = 0; i < movies.length; i++) {
+      var m = movies[i];
+
+      // Idempotent: update if exists, insert if missing
+      var r = db.movies.updateOne(
+        { title: m.title, year: m.year },
+        { $set: m },
+        { upsert: true }
+      );
+      if (r && r.upsertedId) upserts++;
+    }
+
+    print("Seed done. movies=" + movies.length + " upserts=" + upserts);
