@@ -83,12 +83,12 @@ resource "google_container_cluster" "primary" {
   }
 
   # Managed Prometheus
-  monitoring_config {
-    enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
-    managed_prometheus {
-      enabled = true
-    }
-  }
+  #monitoring_config {
+  #    enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
+  #    managed_prometheus {
+  #      enabled = true
+  #    }
+  #}
 
   depends_on = [google_project_service.apis]
 }
@@ -109,11 +109,11 @@ resource "google_container_node_pool" "primary_nodes" {
     machine_type = "e2-standard-4"
     disk_size_gb = 50
     disk_type    = "pd-standard"
-    
+
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
     ]
-    
+
     workload_metadata_config {
       mode = "GKE_METADATA"
     }

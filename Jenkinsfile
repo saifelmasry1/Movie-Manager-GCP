@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   environment {
-    PROJECT_ID   = 'PROJECT_ID_بتاعك_هنا'
+    PROJECT_ID   = 'movie-manager-gcp'
     REGION       = 'us-central1'
     CLUSTER_NAME = 'movie-manager-gke'
     REPO         = 'movie-manager-repo'

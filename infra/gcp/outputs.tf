@@ -3,7 +3,7 @@ output "cluster_name" {
 }
 
 output "cluster_endpoint" {
-  value = google_container_cluster.primary.endpoint
+  value     = google_container_cluster.primary.endpoint
   sensitive = true
 }
 
