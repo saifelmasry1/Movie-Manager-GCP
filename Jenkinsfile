@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  options {
+    skipDefaultCheckout(true)
+  }
+
   environment {
     PROJECT_ID   = 'movie-manager-gcp'
     REGION       = 'us-central1'
@@ -13,7 +17,6 @@ pipeline {
 
     TAG          = "${env.BUILD_NUMBER}"
 
-    // خلي كل build مستقل عن Home بتاع Jenkins
     CLOUDSDK_CONFIG = "${WORKSPACE}/.gcloud"
     KUBECONFIG      = "${WORKSPACE}/kubeconfig"
   }
@@ -26,17 +29,14 @@ pipeline {
     stage('Auth GCP (VM Service Account)') {
       steps {
         sh '''
-          set -euo pipefail
-          mkdir -p "$CLOUDSDK_CONFIG"
-
-          # على GCE المفروض ده يطلع حساب الـ Service Account
-          gcloud auth list || true
-
-          gcloud config set project "$PROJECT_ID"
-          gcloud config set compute/region "$REGION"
-
-          # يخلي docker يقدر يعمل push على Artifact Registry
-          gcloud auth configure-docker "$AR_HOST" -q
+          bash -lc "
+            set -euo pipefail
+            mkdir -p '$CLOUDSDK_CONFIG'
+            gcloud auth list || true
+            gcloud config set project '$PROJECT_ID'
+            gcloud config set compute/region '$REGION'
+            gcloud auth configure-docker '$AR_HOST' -q
+          "
         '''
       }
     }
@@ -44,9 +44,11 @@ pipeline {
     stage('Build Images') {
       steps {
         sh '''
-          set -euo pipefail
-          docker build -t "$FRONT_IMAGE:$TAG" -t "$FRONT_IMAGE:latest" app/frontend
-          docker build -t "$BACK_IMAGE:$TAG"  -t "$BACK_IMAGE:latest"  app/backend
+          bash -lc "
+            set -euo pipefail
+            docker build -t '$FRONT_IMAGE:$TAG' -t '$FRONT_IMAGE:latest' app/frontend
+            docker build -t '$BACK_IMAGE:$TAG'  -t '$BACK_IMAGE:latest'  app/backend
+          "
         '''
       }
     }
@@ -54,11 +56,13 @@ pipeline {
     stage('Push Images') {
       steps {
         sh '''
-          set -euo pipefail
-          docker push "$FRONT_IMAGE:$TAG"
-          docker push "$FRONT_IMAGE:latest"
-          docker push "$BACK_IMAGE:$TAG"
-          docker push "$BACK_IMAGE:latest"
+          bash -lc "
+            set -euo pipefail
+            docker push '$FRONT_IMAGE:$TAG'
+            docker push '$FRONT_IMAGE:latest'
+            docker push '$BACK_IMAGE:$TAG'
+            docker push '$BACK_IMAGE:latest'
+          "
         '''
       }
     }
@@ -66,13 +70,18 @@ pipeline {
     stage('Get GKE Credentials') {
       steps {
         sh '''
-          set -euo pipefail
-          mkdir -p "$(dirname "$KUBECONFIG")"
+          bash -lc "
+            set -euo pipefail
+            mkdir -p '$CLOUDSDK_CONFIG'
+            export CLOUDSDK_CONFIG='$CLOUDSDK_CONFIG'
+            export KUBECONFIG='$KUBECONFIG'
 
-          gcloud container clusters get-credentials "$CLUSTER_NAME" \
-            --region "$REGION" --project "$PROJECT_ID"
+            gcloud config set project '$PROJECT_ID'
+            gcloud config set compute/region '$REGION'
 
-          kubectl get nodes
+            gcloud container clusters get-credentials '$CLUSTER_NAME' --region '$REGION' --project '$PROJECT_ID'
+            kubectl get nodes
+          "
         '''
       }
     }
@@ -80,11 +89,13 @@ pipeline {
     stage('Render K8s Manifests') {
       steps {
         sh '''
-          set -euo pipefail
-          rm -rf rendered-k8s && mkdir -p rendered-k8s
-          for f in k8s/*.yaml; do
-            envsubst < "$f" > "rendered-k8s/$(basename "$f")"
-          done
+          bash -lc "
+            set -euo pipefail
+            rm -rf rendered-k8s && mkdir -p rendered-k8s
+            for f in k8s/*.yaml; do
+              envsubst < \"\$f\" > \"rendered-k8s/\$(basename \"\$f\")\"
+            done
+          "
         '''
       }
     }
@@ -92,8 +103,11 @@ pipeline {
     stage('Deploy to GKE') {
       steps {
         sh '''
-          set -euo pipefail
-          kubectl apply -f rendered-k8s/
+          bash -lc "
+            set -euo pipefail
+            export KUBECONFIG='$KUBECONFIG'
+            kubectl apply -f rendered-k8s/
+          "
         '''
       }
     }
@@ -101,10 +115,13 @@ pipeline {
     stage('Mongo Seed') {
       steps {
         sh '''
-          set -euo pipefail
-          kubectl delete job mongo-seed-movies --ignore-not-found
-          kubectl apply -f rendered-k8s/mongo-seed-job.yaml
-          kubectl wait --for=condition=complete job/mongo-seed-movies --timeout=300s
+          bash -lc "
+            set -euo pipefail
+            export KUBECONFIG='$KUBECONFIG'
+            kubectl delete job mongo-seed-movies --ignore-not-found
+            kubectl apply -f rendered-k8s/mongo-seed-job.yaml
+            kubectl wait --for=condition=complete job/mongo-seed-movies --timeout=300s
+          "
         '''
       }
     }
@@ -113,8 +130,15 @@ pipeline {
   post {
     always {
       sh '''
-        export KUBECONFIG="${WORKSPACE}/kubeconfig"
-        kubectl get pods,svc,ingress -A || true
+        bash -lc "
+          set +e
+          if [ -f '$KUBECONFIG' ]; then
+            export KUBECONFIG='$KUBECONFIG'
+            kubectl get pods,svc,ingress -A -o wide || true
+          else
+            echo 'KUBECONFIG not found (pipeline failed before get-credentials). Skipping kubectl post actions.'
+          fi
+        "
       '''
     }
   }
